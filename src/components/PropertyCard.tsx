@@ -18,6 +18,7 @@ import { Button } from '@/components/ui/button';
 import type { Property } from '@/types/property';
 import { PROPERTY_TYPE_LABELS, OPERATION_TYPE_LABELS } from '@/types/property';
 import { formatPrice, formatArea, truncateText } from '@/lib/utils';
+import { CompareButton } from './ui/CompareButton';
 
 /**
  * Props del componente PropertyCard.
@@ -116,13 +117,17 @@ export function PropertyCard({ property, onDelete }: PropertyCardProps): React.R
         </div>
       </CardContent>
 
-      <CardFooter className="p-4 pt-0 gap-2">
+      <CardFooter className="p-4 pt-0 flex flex-wrap gap-2"> {/* Añadimos flex-wrap por si el espacio es poco */}
         {/* Botón ver detalles */}
         <Button asChild className="flex-1">
           <Link to={`/property/${property.id}`}>Ver detalles</Link>
         </Button>
 
-        {/* Botón eliminar (si se proporciona callback) */}
+        {/* INTEGRACIÓN DEL COMPARADOR */}
+        {/* Este botón gestionará el límite de 3 y el estado de selección */}
+        <CompareButton propertyId={property.id} />
+
+        {/* Botón eliminar */}
         {onDelete && (
           <Button
             variant="destructive"

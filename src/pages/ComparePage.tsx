@@ -1,274 +1,118 @@
-// =============================================================================
-// PÁGINA: HOME - Real Estate React
-// =============================================================================
-// Página principal que muestra la lista de propiedades con filtros.
-//
-// ## Gestión de Estado en React 19
-// Usamos useState para el estado local de filtros y propiedades.
-// En aplicaciones más grandes, consideraríamos:
-// - Context API para estado compartido
-// - Zustand/Jotai para estado global simple
-// - TanStack Query para datos del servidor
-// =============================================================================
-
-import type React from 'react';
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Plus, Search, X } from 'lucide-react';
+import { getAllProperties } from '@/lib/storage'; // Ajusta esto según tu API/Storage real
+import { Property } from '@/types/property';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import { PropertyCard } from '@/components/PropertyCard';
-import { filterProperties, deleteProperty, initializeWithSampleData } from '@/lib/storage';
-import type { Property, PropertyFilters } from '@/types/property';
-import {
-  PROPERTY_TYPES,
-  OPERATION_TYPES,
-  PROPERTY_TYPE_LABELS,
-  OPERATION_TYPE_LABELS,
-} from '@/types/property';
+import { CompareButton } from '@/components/ui/CompareButton';
 
-/**
- * Página principal con lista de propiedades y filtros.
- */
-export function ComparePage(): React.ReactElement {
-  // =========================================================================
-  // ESTADO
-  // =========================================================================
-  // - properties: Lista de propiedades filtradas
-  // - filters: Criterios de búsqueda actuales
-  // =========================================================================
-  const [properties, setProperties] = useState<Property[]>([]);
-  const [filters, setFilters] = useState<PropertyFilters>({});
+export function ComparePage() {
+  const [compareList, setCompareList] = useState<Property[]>([]);
 
-  // =========================================================================
-  // CARGAR PROPIEDADES
-  // =========================================================================
-  // useCallback memoriza la función para evitar recrearla en cada render.
-  // Esto es importante cuando la función se pasa como dependencia de useEffect.
-  // =========================================================================
-  const loadProperties = useCallback(() => {
-    const filtered = filterProperties(filters);
-    setProperties(filtered);
-  }, [filters]);
+  const loadComparedProperties = () => {
+    const storedIds = JSON.parse(localStorage.getItem('compareList') || '[]');
+    // Supongamos que tienes una función para obtener todas las propiedades
+    const allProperties = getAllProperties(); 
+    const selected = allProperties.filter(p => storedIds.includes(p.id));
+    setCompareList(selected);
+  };
 
-  // =========================================================================
-  // EFECTOS
-  // =========================================================================
-  // useEffect ejecuta código después del render.
-  // Aquí lo usamos para:
-  // 1. Inicializar datos de ejemplo si no hay datos
-  // 2. Cargar propiedades cuando cambian los filtros
-  // =========================================================================
   useEffect(() => {
-    // Inicializar con datos de ejemplo si está vacío
-    initializeWithSampleData();
+    loadComparedProperties();
+    // Escuchar cambios si removemos desde esta misma página
+    window.addEventListener('compareUpdated', loadComparedProperties);
+    return () => window.removeEventListener('compareUpdated', loadComparedProperties);
+  }, []);
 
-    // Pequeño delay para asegurar que los datos se cargaron
-    const timer = setTimeout(() => {
-      loadProperties();
-    }, 100);
+  // Calcular mejores valores para resaltar
+  const lowestPrice = Math.min(...compareList.map(p => p.price));
+  const highestArea = Math.max(...compareList.map(p => p.area));
 
-    return () => clearTimeout(timer);
-  }, [loadProperties]);
-
-  // =========================================================================
-  // HANDLERS
-  // =========================================================================
-
-  /**
-   * Actualiza un filtro específico.
-   */
-  const handleFilterChange = (key: keyof PropertyFilters, value: string | number): void => {
-    setFilters((prev) => ({
-      ...prev,
-      [key]: value === 'all' ? undefined : value,
-    }));
-  };
-
-  /**
-   * Limpia todos los filtros.
-   */
-  const handleClearFilters = (): void => {
-    setFilters({});
-  };
-
-  /**
-   * Elimina una propiedad.
-   */
-  const handleDelete = (id: string): void => {
-    if (window.confirm('¿Estás seguro de eliminar esta propiedad?')) {
-      deleteProperty(id);
-      loadProperties();
-    }
-  };
-
-  // Verificamos si hay filtros activos
-  const hasFilters = Object.values(filters).some(
-    (v) => v !== undefined && v !== '' && v !== 0
-  );
+  // Empty State
+  if (compareList.length === 0) {
+    return (
+      <div className="container mx-auto px-4 py-16 text-center">
+        <h1 className="text-3xl font-bold mb-4">Comparación de Propiedades</h1>
+        <p className="text-muted-foreground mb-6">No has seleccionado ninguna propiedad para comparar.</p>
+        <Button asChild>
+          <Link to="/">Volver a la lista</Link>
+        </Button>
+      </div>
+    );
+  }
 
   return (
     <div className="container mx-auto px-4 py-8">
-      {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-8">
-        <div>
-          <h1 className="text-3xl font-bold">Propiedades Disponibles</h1>
-          <p className="text-muted-foreground">
-            {properties.length} {properties.length === 1 ? 'propiedad encontrada' : 'propiedades encontradas'}
-          </p>
-        </div>
-
-        <Button asChild>
-          <Link to="/">
-            Comparar propiedades
-          </Link>
-
-        </Button>
-
-        <Button asChild>
-          <Link to="/new">
-            <Plus className="h-4 w-4 mr-2" />
-            Nueva Propiedad
-          </Link>
+      <div className="flex justify-between items-center mb-8">
+        <h1 className="text-3xl font-bold">Comparando {compareList.length} propiedades</h1>
+        <Button asChild variant="outline">
+          <Link to="/">Volver al listado</Link>
         </Button>
       </div>
 
-      {/* Filtros */}
-      <div className="bg-card rounded-lg border p-4 mb-8">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          {/* Búsqueda por texto */}
-          <div className="relative lg:col-span-2">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Buscar por título, dirección o ciudad..."
-              className="pl-10"
-              value={filters.search ?? ''}
-              onChange={(e) => handleFilterChange('search', e.target.value)}
-            />
-          </div>
-
-          {/* Tipo de propiedad */}
-          <Select
-            value={filters.propertyType ?? 'all'}
-            onValueChange={(value) => handleFilterChange('propertyType', value)}
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="Tipo de propiedad" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todos los tipos</SelectItem>
-              {PROPERTY_TYPES.map((type) => (
-                <SelectItem key={type} value={type}>
-                  {PROPERTY_TYPE_LABELS[type]}
-                </SelectItem>
+      <div className="overflow-x-auto rounded-lg border bg-card">
+        <table className="w-full text-sm text-left">
+          <thead className="bg-muted/50 border-b">
+            <tr>
+              <th className="p-4 font-medium text-muted-foreground">Característica</th>
+              {compareList.map(prop => (
+                <th key={prop.id} className="p-4 font-bold text-lg">{prop.title}</th>
               ))}
-            </SelectContent>
-          </Select>
-
-          {/* Tipo de operacion */}
-          <Select
-            value={filters.operationType ?? 'all'}
-            onValueChange={(value) => handleFilterChange('operationType', value)}
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="Operacion" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Venta y Alquiler</SelectItem>
-              {OPERATION_TYPES.map((type) => (
-                <SelectItem key={type} value={type}>
-                  {OPERATION_TYPE_LABELS[type]}
-                </SelectItem>
+            </tr>
+          </thead>
+          <tbody className="divide-y">
+            {/* Precio */}
+            <tr>
+              <td className="p-4 font-medium">Precio</td>
+              {compareList.map(prop => (
+                <td key={prop.id} className={`p-4 ${prop.price === lowestPrice ? 'bg-green-100 text-green-800 font-bold dark:bg-green-900/30' : ''}`}>
+                  ${prop.price.toLocaleString()}
+                </td>
               ))}
-            </SelectContent>
-          </Select>
-        </div>
-
-        {/* Filtros adicionales y botón de limpiar */}
-        <div className="flex flex-wrap gap-4 mt-4">
-          <div className="flex items-center gap-2">
-            <span className="text-sm text-muted-foreground">Precio mín:</span>
-            <Input
-              type="number"
-              placeholder="0"
-              className="w-28"
-              value={filters.minPrice ?? ''}
-              onChange={(e) =>
-                handleFilterChange('minPrice', e.target.value ? Number(e.target.value) : 0)
-              }
-            />
-          </div>
-
-          <div className="flex items-center gap-2">
-            <span className="text-sm text-muted-foreground">Precio máx:</span>
-            <Input
-              type="number"
-              placeholder="∞"
-              className="w-28"
-              value={filters.maxPrice ?? ''}
-              onChange={(e) =>
-                handleFilterChange('maxPrice', e.target.value ? Number(e.target.value) : 0)
-              }
-            />
-          </div>
-
-          <div className="flex items-center gap-2">
-            <span className="text-sm text-muted-foreground">Hab. mín:</span>
-            <Input
-              type="number"
-              placeholder="0"
-              className="w-20"
-              min="0"
-              value={filters.minBedrooms ?? ''}
-              onChange={(e) =>
-                handleFilterChange('minBedrooms', e.target.value ? Number(e.target.value) : 0)
-              }
-            />
-          </div>
-
-          {hasFilters && (
-            <Button variant="ghost" size="sm" onClick={handleClearFilters}>
-              <X className="h-4 w-4 mr-1" />
-              Limpiar filtros
-            </Button>
-          )}
-        </div>
+            </tr>
+            {/* Habitaciones */}
+            <tr>
+              <td className="p-4 font-medium">Habitaciones</td>
+              {compareList.map(prop => (
+                <td key={prop.id} className="p-4">{prop.bedrooms}</td>
+              ))}
+            </tr>
+            {/* Baños */}
+            <tr>
+              <td className="p-4 font-medium">Baños</td>
+              {compareList.map(prop => (
+                <td key={prop.id} className="p-4">{prop.bathrooms}</td>
+              ))}
+            </tr>
+            {/* Área */}
+            <tr>
+              <td className="p-4 font-medium">Área (m²)</td>
+              {compareList.map(prop => (
+                <td key={prop.id} className={`p-4 ${prop.area === highestArea ? 'bg-blue-100 text-blue-800 font-bold dark:bg-blue-900/30' : ''}`}>
+                  {prop.area} m²
+                </td>
+              ))}
+            </tr>
+            {/* Precio por m2 */}
+            <tr>
+              <td className="p-4 font-medium">Precio / m²</td>
+              {compareList.map(prop => (
+                <td key={prop.id} className="p-4">
+                  ${Math.round(prop.price / prop.area).toLocaleString()}
+                </td>
+              ))}
+            </tr>
+            {/* Acciones */}
+            <tr>
+              <td className="p-4"></td>
+              {compareList.map(prop => (
+                <td key={prop.id} className="p-4">
+                  <CompareButton propertyId={prop.id} />
+                </td>
+              ))}
+            </tr>
+          </tbody>
+        </table>
       </div>
-
-      {/* Lista de propiedades */}
-      {properties.length > 0 ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {properties.map((property) => (
-            <PropertyCard
-              key={property.id}
-              property={property}
-              onDelete={handleDelete}
-            />
-          ))}
-        </div>
-      ) : (
-        <div className="text-center py-12">
-          <p className="text-muted-foreground text-lg mb-4">
-            No se encontraron propiedades
-          </p>
-          {hasFilters ? (
-            <Button variant="outline" onClick={handleClearFilters}>
-              Limpiar filtros
-            </Button>
-          ) : (
-            <Button asChild>
-              <Link to="/new">Agregar primera propiedad</Link>
-            </Button>
-          )}
-        </div>
-      )}
     </div>
   );
 }
